@@ -4,6 +4,7 @@ import {
   Context,
 } from "aws-lambda";
 import { SNS } from "aws-sdk";
+import { EmailParams } from "../../models/Notifications";
 
 // Client do SNS
 const snsClient = new SNS();
@@ -24,10 +25,15 @@ export async function handler(
   );
 
   if (event.resource === "/notifications") {
-    if (method === "GET") {
+    if (method === "POST") {
+      const body = JSON.parse(event.body!) as EmailParams;
+      const emailDestinatary = body.emailDestinatary;
+      const emailMessage = body.emailMessage;
+
       const eventResult = await sendNotification(
         "NOTIFICATIONS_GET",
-        lambdaRequestId
+        emailDestinatary,
+        emailMessage
       );
 
       return {
@@ -47,12 +53,16 @@ export async function handler(
   };
 }
 
-function sendNotification(eventType: string, lambdaRequestId: string) {
+function sendNotification(
+  eventType: string,
+  emailDestinatary: string,
+  emailMessage: string
+) {
   const notificationData = {
     eventType,
     data: {
-      message: "Testando",
-      lambdaRequestId,
+      emailDestinatary,
+      emailMessage,
     },
   };
 

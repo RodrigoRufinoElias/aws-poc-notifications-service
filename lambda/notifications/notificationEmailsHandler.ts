@@ -1,6 +1,7 @@
 import { SQSEvent, Context, SNSMessage } from "aws-lambda";
 import { AWSError, SES } from "aws-sdk";
 import { PromiseResult } from "aws-sdk/lib/request";
+import { Notification, EmailParams } from "../../models/Notifications";
 
 const sesClient = new SES();
 
@@ -22,16 +23,19 @@ export async function handler(
 }
 
 function sendEmail(body: SNSMessage) {
+  const notification = JSON.parse(body.Message) as Notification;
+  const emailParams = notification.data as EmailParams;
+
   return sesClient
     .sendEmail({
       Destination: {
-        ToAddresses: ["rodrigo.elias@encora.com"],
+        ToAddresses: [emailParams.emailDestinatary],
       },
       Message: {
         Body: {
           Text: {
             Charset: "UTF-8",
-            Data: "Teste de envio de email!",
+            Data: emailParams.emailMessage,
           },
         },
         Subject: {

@@ -39,6 +39,6 @@ export class NotificationApiStack extends cdk.Stack {
 
     const notificationsResource = api.root.addResource("notifications");
 
-    notificationsResource.addMethod("GET", notificationsIntegration);
+    notificationsResource.addMethod("POST", notificationsIntegration);
   }
 }
