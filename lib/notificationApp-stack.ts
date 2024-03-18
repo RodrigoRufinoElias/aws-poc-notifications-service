@@ -4,6 +4,7 @@ import * as cdk from "aws-cdk-lib";
 import * as sns from "aws-cdk-lib/aws-sns";
 import * as subs from "aws-cdk-lib/aws-sns-subscriptions";
 import * as sqs from "aws-cdk-lib/aws-sqs";
+import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambdaEventSource from "aws-cdk-lib/aws-lambda-event-sources";
 import { Construct } from "constructs";
 
@@ -48,11 +49,27 @@ export class NotificationAppStack extends cdk.Stack {
     // Dar permissão ao "notificationsHandler" para publicar mensagens no tópico "notificationsTopic"
     notificationsTopic.grantPublish(this.notificationsHandler);
 
+    // DLQ (Dead-Letter Queue) mecanismo para tratar erro nas filas.
+    // Caso alguma msg apresente algum erro, a msg é retirada da fila pricipal e é jogada na fila DLQ para ser
+    // tratada manualmente ou de forma automática.
+    const notificationsQueueDlq = new sqs.Queue(this, "NotificationsQueueDlq", {
+      queueName: "NotificationsQueueDlq",
+      retentionPeriod: cdk.Duration.days(10),
+      enforceSSL: false,
+      encryption: sqs.QueueEncryption.UNENCRYPTED,
+    });
+
     // Fila SQS
     const notificationsQueue = new sqs.Queue(this, "NotificationsQueue", {
       queueName: "NotificationsQueue",
       enforceSSL: false,
       encryption: sqs.QueueEncryption.UNENCRYPTED,
+      deadLetterQueue: {
+        // quantas vezes vai retentar o cominho positivo da fila. Se chegar ao limite e ainda estiver com erro
+        // o item da lista vai pra fila DLQ
+        maxReceiveCount: 3,
+        queue: notificationsQueueDlq,
+      },
     });
 
     // Inscrição da fila SQS no tópico
@@ -96,5 +113,15 @@ export class NotificationAppStack extends cdk.Stack {
 
     // Permissão para o lambda "notificationEmailsHandler" consumir mensagens da fila SQS "notificationsQueue"
     notificationsQueue.grantConsumeMessages(notificationEmailsHandler);
+
+    // Policy para dar permissão de envio de emails
+    const sendEmailSesPolicy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ["ses:SendEmail", "ses:SendRawEmail"],
+      resources: ["*"],
+    });
+
+    // Atribui a policy "sendEmailSesPolicy" ao lambda "notificationEmailsHandler"
+    notificationEmailsHandler.addToRolePolicy(sendEmailSesPolicy);
   }
 }
